@@ -1,4 +1,10 @@
-# reflect
+# Reflect - Efficiency Tracker for Software Engineers
+
+### Version
+0.2.0
+
+### License
+This project is licensed under [MIT License](License.txt).
 
 A personal self-reflection tool. Reads local git repositories and a simple
 manual time-log, prints a daily (or weekly/monthly) dashboard in the terminal,
@@ -45,6 +51,10 @@ project = "acme"
 git_email = "you@acme.com"
 ```
 
+Paths accept either forward slashes (`C:/Users/...`) or escaped backslashes
+(`C:\\Users\\...`). Forward slashes are recommended — they don't need escaping
+in TOML.
+
 Then run `reflect config` again to verify: every repo should show a `✓`.
 
 ## Daily use
@@ -61,26 +71,17 @@ reflect month 2026-04
 
 ## Logging time
 
-Dot-source the PowerShell helper from your profile so `log` is available in
-every session:
+Logging is a `reflect` subcommand — same `reflect` binary as the dashboard,
+no PowerShell profile setup needed:
 
 ```powershell
-. C:\path\to\efficiency-tracker\scripts\log.ps1
-```
-
-(Open your profile with `notepad $PROFILE`. Create the file if it doesn't
-exist yet.)
-
-Then during the day:
-
-```powershell
-log meeting 30 "standup"
-log testing 90 "pre-merge with M"
-log interrupt 15 "slack thread"
-log deepthink 45 "design sketch for billing flow"
-log merge_event 0 "merged bank details to staging"
-log tasks "bank details crud, login fix, dashboard prep"
-log reflect "rework spike was from yesterday's testing catches"
+reflect log meeting 30 "standup"
+reflect log testing 90 "pre-merge with M"
+reflect log interrupt 15 "slack thread"
+reflect log deepthink 45 "design sketch for billing flow"
+reflect log merge_event 0 "merged bank details to staging"
+reflect log tasks "bank details crud, login fix, dashboard prep"
+reflect log reflect "rework spike was from yesterday's testing catches"
 ```
 
 Categories: `meeting`, `testing`, `deepthink`, `interrupt`, `review`, `admin`,
@@ -89,12 +90,30 @@ Categories: `meeting`, `testing`, `deepthink`, `interrupt`, `review`, `admin`,
 For `tasks` and `reflect` you can omit the duration (it defaults to 1):
 
 ```powershell
-log tasks "bank details crud, login fix"
-log reflect "good flow after lunch"
+reflect log tasks "bank details crud, login fix"
+reflect log reflect "good flow after lunch"
 ```
 
-End-of-day ritual: run `log tasks "..."` with the tasks you actually worked
-on. The dashboard uses that list to attribute commits.
+The `time` column in `log.csv` is the **start time of the activity**. If you
+omit `--time`, it defaults to `now - duration` — so logging right after a
+30-minute meeting records the correct start time without typing one.
+
+### Backdating entries
+
+If you forget to log an activity, you can backdate with `--date` and `--time`:
+
+```powershell
+reflect log meeting 30 "standup" --time 09:00                       # earlier today
+reflect log meeting 30 "standup" --date yesterday   --time 09:00    # yesterday
+reflect log meeting 30 "standup" --date 2026-04-18  --time 09:00    # specific day
+```
+
+`--time` (24-hour `HH:MM`) is required whenever `--date` is anything other
+than today, since "now" doesn't apply to a past day. `--date` accepts
+`today`, `yesterday`, or `YYYY-MM-DD`.
+
+End-of-day ritual: run `reflect log tasks "..."` with the tasks you actually
+worked on. The dashboard uses that list to attribute commits.
 
 ## Safety guarantees
 
@@ -120,8 +139,6 @@ reflect/
   dashboard.py     rich-based terminal rendering + reflection prompt
   cli.py           argparse entry point
   paths.py         resolves %USERPROFILE%\.reflect\
-scripts/
-  log.ps1          PowerShell `log` function to append CSV rows
 CLAUDE.md          full design brief — read this before changing anything
 ```
 

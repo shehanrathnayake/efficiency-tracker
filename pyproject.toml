@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reflect"
+version = "0.2.0"
+description = "Personal self-reflection tool that reads local git repos and a manual time log to surface working-pattern prompts."
+readme = "README.md"
+requires-python = ">=3.13"
+authors = [{ email = "shehandj.swd@gmail.com" }]
+dependencies = [
+    "rich>=13.0",
+]
+
+[project.scripts]
+reflect = "reflect.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["reflect"]

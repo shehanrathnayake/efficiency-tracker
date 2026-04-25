@@ -1,11 +1,41 @@
 """Load and validate config.toml; bootstrap the data directory on first run."""
 from __future__ import annotations
 
+import re
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
 from . import paths
+
+
+# Matches a single-line double-quoted TOML string that contains at least one
+# backslash and no embedded double quotes — i.e. a Windows path the user
+# copy-pasted as-is. We rewrite these to TOML literal strings (single quotes)
+# so backslashes are taken verbatim instead of being parsed as escapes.
+_WINDOWS_PATH_DQ = re.compile(r'"([^"\n\\]*(?:\\[^"\n]*)+)"')
+
+
+def _normalize_windows_paths(text: str) -> str:
+    """Convert double-quoted values with backslashes into literal strings.
+
+    Lets users paste Windows paths (C:\\Users\\...) directly without escaping.
+    Skips lines that are TOML comments. Only safe when the value has no
+    single quotes — Windows paths don't, so this is fine in practice.
+    """
+    out_lines = []
+    for line in text.splitlines(keepends=True):
+        stripped = line.lstrip()
+        if stripped.startswith("#"):
+            out_lines.append(line)
+            continue
+        out_lines.append(
+            _WINDOWS_PATH_DQ.sub(
+                lambda m: f"'{m.group(1)}'" if "'" not in m.group(1) else m.group(0),
+                line,
+            )
+        )
+    return "".join(out_lines)
 
 
 @dataclass(frozen=True)
@@ -101,8 +131,15 @@ def load() -> Config:
             f"Run `reflect config` once to bootstrap the data directory, then edit it."
         )
 
-    with cfg_path.open("rb") as f:
-        raw = tomllib.load(f)
+    text = cfg_path.read_text(encoding="utf-8")
+    try:
+        raw = tomllib.loads(_normalize_windows_paths(text))
+    except tomllib.TOMLDecodeError as e:
+        raise ConfigError(
+            f"Could not parse {cfg_path}: {e}\n"
+            f"Tip: use forward slashes (\"C:/Users/you/work/repo\") or "
+            f"backslashes (\"C:\\Users\\you\\work\\repo\") — both work."
+        ) from e
 
     repos_raw = raw.get("repos", {})
     if not isinstance(repos_raw, dict) or not repos_raw:

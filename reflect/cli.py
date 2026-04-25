@@ -130,7 +130,21 @@ def cmd_config() -> int:
     return 0
 
 
+def _ensure_utf8_stdio() -> None:
+    # Windows consoles often default to cp1252, which can't encode the unicode
+    # markers used in the dashboard (▸, ✓, —, ⚠). Reconfigure to UTF-8 with a
+    # safe fallback so output never crashes mid-render.
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _ensure_utf8_stdio()
     p = argparse.ArgumentParser(
         prog="reflect",
         description="Personal reflection dashboard from local git history and a manual time log.",

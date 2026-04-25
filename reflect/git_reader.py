@@ -134,7 +134,7 @@ def read_commits(repo: RepoConfig) -> list[Commit]:
 
         commits[hash_] = Commit(
             hash=hash_,
-            timestamp=datetime.fromisoformat(iso_ts),
+            timestamp=datetime.fromisoformat(iso_ts).astimezone().replace(tzinfo=None),
             author_email=author_email,
             subject=subject,
             repo_key=repo.key,

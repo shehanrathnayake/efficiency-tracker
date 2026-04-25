@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import argparse
 import calendar
+import csv
+import io
 import sys
 from datetime import date, datetime, timedelta
 
@@ -11,7 +13,7 @@ from . import config as config_mod
 from . import dashboard
 from . import paths
 from .git_reader import GitReadError, read_all_commits
-from .log_reader import read_log
+from .log_reader import KNOWN_CATEGORIES, read_log
 from .metrics import compute_day, compute_period
 
 
@@ -130,6 +132,83 @@ def cmd_config() -> int:
     return 0
 
 
+def _csv_quote(note: str) -> str:
+    if any(c in note for c in (",", '"', "\r", "\n")):
+        buf = io.StringIO()
+        csv.writer(buf, quoting=csv.QUOTE_MINIMAL).writerow([note])
+        return buf.getvalue().rstrip("\r\n")
+    return note
+
+
+def cmd_log(
+    category: str,
+    arg2: str,
+    arg3: str | None,
+    date_arg: str | None,
+    time_arg: str | None,
+) -> int:
+    category = category.lower()
+    if category not in KNOWN_CATEGORIES:
+        print(
+            f"error: unknown category '{category}'. "
+            f"Choose one of: {', '.join(sorted(KNOWN_CATEGORIES))}.",
+            file=sys.stderr,
+        )
+        return 2
+    # arg2 numeric → duration; arg3 → note. Otherwise arg2 is the note and
+    # duration defaults to 1 (matches the old PowerShell helper, used for
+    # `tasks`, `reflect`, `merge_event` where duration isn't meaningful).
+    try:
+        duration = int(arg2)
+        note = arg3 or ""
+    except ValueError:
+        duration = 1
+        note = arg2 if arg3 is None else f"{arg2} {arg3}"
+
+    today = date.today()
+    if date_arg:
+        low = date_arg.lower()
+        if low == "today":
+            entry_date = today
+        elif low == "yesterday":
+            entry_date = today - timedelta(days=1)
+        else:
+            try:
+                entry_date = datetime.strptime(date_arg, "%Y-%m-%d").date()
+            except ValueError:
+                print(
+                    f"error: invalid --date '{date_arg}'. Use YYYY-MM-DD, 'today', or 'yesterday'.",
+                    file=sys.stderr,
+                )
+                return 2
+    else:
+        entry_date = today
+
+    backdated = entry_date != today
+
+    if time_arg:
+        try:
+            t = datetime.strptime(time_arg, "%H:%M").time()
+        except ValueError:
+            print(f"error: invalid --time '{time_arg}'. Use HH:MM (24-hour).", file=sys.stderr)
+            return 2
+        start_dt = datetime.combine(entry_date, t)
+    elif backdated:
+        print("error: --time is required when --date is not today.", file=sys.stderr)
+        return 2
+    else:
+        start_dt = datetime.now() - timedelta(minutes=duration)
+
+    log_path = paths.log_path()
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    line = f"{start_dt.strftime('%Y-%m-%d')},{start_dt.strftime('%H:%M')},{duration},{category},{_csv_quote(note)}\r\n"
+    with open(log_path, "a", encoding="utf-8", newline="") as f:
+        f.write(line)
+    print(f"logged: {line.rstrip()}")
+    return 0
+
+
 def _ensure_utf8_stdio() -> None:
     # Windows consoles often default to cp1252, which can't encode the unicode
     # markers used in the dashboard (▸, ✓, —, ⚠). Reconfigure to UTF-8 with a
@@ -162,6 +241,30 @@ def main(argv: list[str] | None = None) -> int:
     month_p.add_argument("month", nargs="?")
     sub.add_parser("config", help="bootstrap data dir or print resolved config")
 
+    log_p = sub.add_parser(
+        "log",
+        help="append a row to log.csv (e.g. `reflect log meeting 30 standup`)",
+    )
+    log_p.add_argument(
+        "category",
+        help="meeting | testing | deepthink | interrupt | review | admin | merge_event | reflect | tasks",
+    )
+    log_p.add_argument(
+        "arg2",
+        help="duration in minutes (or note when duration isn't meaningful, e.g. tasks/reflect)",
+    )
+    log_p.add_argument("note", nargs="?", help="note (when arg2 is a duration)")
+    log_p.add_argument(
+        "--date",
+        dest="date_arg",
+        help="entry date: today (default), yesterday, or YYYY-MM-DD",
+    )
+    log_p.add_argument(
+        "--time",
+        dest="time_arg",
+        help="start time HH:MM (24-hour). Required when --date is not today.",
+    )
+
     args = p.parse_args(argv)
 
     if args.cmd is None:
@@ -189,6 +292,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_month(args.month)
     if args.cmd == "config":
         return cmd_config()
+    if args.cmd == "log":
+        return cmd_log(args.category, args.arg2, args.note, args.date_arg, args.time_arg)
 
     p.print_help()
     return 0

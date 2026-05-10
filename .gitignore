@@ -1,7 +1,9 @@
-.claude
-.claude/*
-CLAUDE.md
+.claude/settings.local.json
+CLAUDE*.md
 
 __pycache__/
 **/__pycache__/
 *.pyc
+
+.env
+*.pem

@@ -1,0 +1,32 @@
+name: Gemini PR Review
+on:
+  pull_request:
+    types: [ready_for_review]
+    branches: [dev, staging, main]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - uses: google-github-actions/run-gemini-cli@v0
+        with:
+          prompt: |
+            Review this pull request for bugs, security issues,
+            and convention violations. Check the diff carefully.
+            Be concise. Format findings as markdown.
+            Post your review as a comment on the PR.
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          github_token: ${{ steps.app-token.outputs.token }}

@@ -24,11 +24,12 @@ jobs:
       - uses: google-github-actions/run-gemini-cli@v0
         env:
           GEMINI_CLI_TRUST_WORKSPACE: true
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         with:
           prompt: |
             Review this pull request for bugs, security issues,
             and convention violations. Check the diff carefully.
             Be concise. Format findings as markdown.
             Post your review as a comment on the PR.
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          github_token: ${{ steps.app-token.outputs.token }}
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          github_pr_number: ${{ github.event.pull_request.number }}

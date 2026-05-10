@@ -22,6 +22,8 @@ jobs:
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - uses: google-github-actions/run-gemini-cli@v0
+        env:
+          GEMINI_CLI_TRUST_WORKSPACE: true
         with:
           prompt: |
             Review this pull request for bugs, security issues,

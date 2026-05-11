@@ -1,4 +1,5 @@
 name: Deploy notification
+
 on:
   push:
     branches: [staging, main]
@@ -6,31 +7,14 @@ on:
 jobs:
   notify:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 10
 
-      - name: Generate summary and post to Slack
+    steps:
+      - name: Send success message to Slack
         run: |
           BRANCH="${{ github.ref_name }}"
-          COMMITS=$(git log --oneline -10 origin/${BRANCH}~1..HEAD)
-
-          SUMMARY=$(curl -s \
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${{ secrets.GEMINI_API_KEY }}" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"contents\": [{
-                \"parts\": [{
-                  \"text\": \"Write a 2-sentence deploy summary for the ${BRANCH} branch from these commits. User-facing language only.\n\n${COMMITS}\"
-                }]
-              }]
-            }" | python3 -c "
-          import sys, json
-          data = json.load(sys.stdin)
-          print(data['candidates'][0]['content']['parts'][0]['text'])
-          ")
 
           curl -s -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
-            -H "content-type: application/json" \
-            -d "{\"text\": \"*Deployed to ${BRANCH}* ✅\n${SUMMARY}\n<https://github.com/${{ github.repository }}/commit/${{ github.sha }}|View commit>\"}"
+            -H "Content-Type: application/json" \
+            -d "{
+              \"text\": \"*Deployment Successful* ✅\nBranch: ${BRANCH}\nRepository: ${{ github.repository }}\n<https://github.com/${{ github.repository }}/commit/${{ github.sha }}|View Commit>\"
+            }"
